@@ -72,7 +72,7 @@ const VoiceToText = () => {
         connectionRef.current.send(event.data);
       }
     };
-    mediaRecorderRef.current.start(250);
+    mediaRecorderRef.current.start(10);
   };
 
   const pauseListening = () => {
