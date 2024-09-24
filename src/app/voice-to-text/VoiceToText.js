@@ -3,16 +3,19 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Box, Button, Typography, AppBar, Toolbar } from '@mui/material';
 import { createClient, LiveTranscriptionEvents } from '@deepgram/sdk';
+import { createFFmpeg, fetchFile} from '@ffmpeg/ffmpeg';
 
 const VoiceToText = () => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [pauseToggle, setPauseToggle] = useState(false);
+  const [audioBlob, setAudioBlob]= useState(null);// to store the text 
 
   const isPausedRef = useRef(false);
   const connectionRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const streamRef = useRef(null);
+  const audioChunksRef = useRef([]); // FOR STORING AUDIO CHUNKS
 
   useEffect(() => {
     return () => {
@@ -69,7 +72,9 @@ const VoiceToText = () => {
     mediaRecorderRef.current = new MediaRecorder(streamRef.current);
     mediaRecorderRef.current.ondataavailable = (event) => {
       if (event.data.size > 0) {
+        audioChunksRef.current.push(event.data); // for stroing audio chunks 
         connectionRef.current.send(event.data);
+        
       }
     };
     mediaRecorderRef.current.start(10);
@@ -87,7 +92,7 @@ const VoiceToText = () => {
     setPauseToggle((prev) => !prev); // Trigger a re-render
   };
 
-  const stopListening = () => {
+  const stopListening = async() => {
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
       console.log('MediaRecorder stopped.');
@@ -105,7 +110,32 @@ const VoiceToText = () => {
     setPauseToggle((prev) => !prev);
     setTranscript('');
     console.log('Transcript cleared.');
+
+  
+     const audioBlob = new Blob(audioChunksRef.current, { type:  "audio/mpeg" });
+    setAudioBlob(audioBlob);
+    await convertToMp3(audioBlob);
   };
+
+  const convertToMp3=  async(audioBlob)=>{
+    const  ffmpeg=createFFmpeg({log: true});
+    await ffmpeg.load();
+
+    const audioFile= new File([audioBlob], "recording.webm");
+    ffmpeg.FS("writefile", "recording.webm", await fetchFile(audioFile));
+  
+    await ffmpeg.run("-i","recoding.webm","output.mp3");
+
+    const mp3Data=ffmpeg.FS("readFile", "output.mp3");
+
+    const mp3Blob = new Blob([mp3Data.buffer], { type:  "audio/mpeg" });
+
+    const mp3BlobData=URL.createObjectURL(mp3Blob);
+    console.log(mp3BlobData);
+    
+    console.log(audioChunksRef);
+
+  }
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
